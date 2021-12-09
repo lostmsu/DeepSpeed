@@ -43,8 +43,6 @@ from ..elasticity.constants import (
 from ..profiling.config import DeepSpeedFlopsProfilerConfig
 from ..autotuning.config import DeepSpeedAutotuningConfig
 
-from .swap_tensor.aio_config import get_aio_config
-
 TENSOR_CORE_ALIGN_SIZE = 8
 
 ADAGRAD_OPTIMIZER = 'adagrad'
@@ -971,8 +969,6 @@ class DeepSpeedConfig(object):
         self.checkpoint_tag_validation_enabled = (validation_mode !=
                                                   ValidationMode.IGNORE)
         self.checkpoint_tag_validation_fail = validation_mode == ValidationMode.FAIL
-
-        self.aio_config = get_aio_config(param_dict)
 
         self.dataloader_drop_last = get_dataloader_drop_last(param_dict)
 

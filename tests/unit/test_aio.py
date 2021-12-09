@@ -5,7 +5,7 @@ import torch
 import deepspeed
 import torch.distributed as dist
 from common import distributed_test
-from deepspeed.ops.aio import AsyncIOBuilder
+from deepspeed.runtime.swap_tensor.mmap_io import MMapIO
 
 MEGA_BYTE = 1024**2
 BLOCK_SIZE = MEGA_BYTE
@@ -15,8 +15,7 @@ IO_PARALLEL = 2
 
 
 def _skip_if_no_aio():
-    if not deepspeed.ops.__compatible_ops__[AsyncIOBuilder.NAME]:
-        pytest.skip('Skip tests since async-io is not compatible')
+    return False
 
 
 def _do_ref_write(tmpdir, index=0):
@@ -65,11 +64,7 @@ def test_parallel_read(tmpdir, single_submit, overlap_events):
         ref_file, _ = _do_ref_write(tmpdir)
 
         aio_buffer = torch.empty(IO_SIZE, dtype=torch.uint8, device='cpu').pin_memory()
-        h = AsyncIOBuilder().load().aio_handle(BLOCK_SIZE,
-                                               QUEUE_DEPTH,
-                                               single_submit,
-                                               overlap_events,
-                                               IO_PARALLEL)
+        h = MMapIO(BLOCK_SIZE, QUEUE_DEPTH, single_submit, overlap_events, IO_PARALLEL)
 
         _validate_handle_state(h, single_submit, overlap_events)
 

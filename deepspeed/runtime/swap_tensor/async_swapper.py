@@ -9,18 +9,18 @@ import torch
 from deepspeed.utils.logging import logger
 from deepspeed.runtime.swap_tensor.utils import swap_out_tensors, SwapBuffer
 
-INVALID_BUFFER_INDEX = -1
 ASYNC_SWAPPER_WAIT_TIMER = 'async_swap_gradient_wait'
+INVALID_BUFFER_INDEX = -1
 
 
 class AsyncTensorSwapper(object):
-    def __init__(self, aio_handle, numel_alignment, timers):
+    def __init__(self, io, numel_alignment, timers):
         self.free_buffer_index = []
         self.swapping_buffer_index = []
         self.ready_buffer_index = []
         self.current_buffer_index = INVALID_BUFFER_INDEX
         self.all_buffers = []
-        self.aio_handle = aio_handle
+        self.io = io
         self.numel_alignment = numel_alignment
         self.max_numel = 0
         self.num_pending_swaps = 0
@@ -129,7 +129,7 @@ class AsyncTensorSwapper(object):
             swap_tensors = buffer.get_swap_tensors()
             swap_paths = buffer.get_swap_paths()
             self.num_pending_swaps += len(swap_tensors)
-            swap_out_tensors(self.aio_handle, swap_tensors, swap_paths)
+            swap_out_tensors(self.io, swap_tensors, swap_paths)
 
         self.swapping_buffer_index += self.ready_buffer_index
         self.ready_buffer_index = []
@@ -138,7 +138,7 @@ class AsyncTensorSwapper(object):
         assert len(self.swapping_buffer_index) > 0
 
         self._start_timer(ASYNC_SWAPPER_WAIT_TIMER)
-        assert self.aio_handle.wait() == self.num_pending_swaps
+        assert self.io.wait() == self.num_pending_swaps
         self._stop_timer(ASYNC_SWAPPER_WAIT_TIMER)
         self.timer_names.add(ASYNC_SWAPPER_WAIT_TIMER)
 

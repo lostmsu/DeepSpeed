@@ -11,8 +11,7 @@ import torch
 import torch.distributed as dist
 
 from deepspeed.utils.logging import logger
-from deepspeed.ops.aio import AsyncIOBuilder
-from .constants import *
+from .mmap_io import MmapIO
 from .utils import swap_in_tensors, swap_out_tensors, MIN_AIO_BYTES, AIO_ALIGNED_BYTES, print_object, SwapBufferPool
 from ..zero.offload_constants import *
 
@@ -36,8 +35,7 @@ class PartitionedParamStatus(Enum):
 class AsyncPartitionedParameterSwapper(object):
     def __init__(self, ds_config):
 
-        aio_op = AsyncIOBuilder().load(verbose=False)
-        self.aio_handle = aio_op.aio_handle
+        self.io = MmapIO
 
         #set swap buffers, create aio handles
         self._configure_aio(ds_config)
@@ -111,17 +109,17 @@ class AsyncPartitionedParameterSwapper(object):
                                    pin_memory=True,
                                    requires_grad=False)
 
-        self.aio_read_handle = self.aio_handle(self.aio_config[AIO_BLOCK_SIZE],
-                                               self.aio_config[AIO_QUEUE_DEPTH],
-                                               self.aio_config[AIO_SINGLE_SUBMIT],
-                                               self.aio_config[AIO_OVERLAP_EVENTS],
-                                               self.aio_config[AIO_THREAD_COUNT])
+        self.aio_read_handle = self.io(self.aio_config[AIO_BLOCK_SIZE],
+                                       self.aio_config[AIO_QUEUE_DEPTH],
+                                       self.aio_config[AIO_SINGLE_SUBMIT],
+                                       self.aio_config[AIO_OVERLAP_EVENTS],
+                                       self.aio_config[AIO_THREAD_COUNT])
 
-        self.aio_write_handle = self.aio_handle(self.aio_config[AIO_BLOCK_SIZE],
-                                                self.aio_config[AIO_QUEUE_DEPTH],
-                                                self.aio_config[AIO_SINGLE_SUBMIT],
-                                                self.aio_config[AIO_OVERLAP_EVENTS],
-                                                self.aio_config[AIO_THREAD_COUNT])
+        self.aio_write_handle = self.io(self.aio_config[AIO_BLOCK_SIZE],
+                                        self.aio_config[AIO_QUEUE_DEPTH],
+                                        self.aio_config[AIO_SINGLE_SUBMIT],
+                                        self.aio_config[AIO_OVERLAP_EVENTS],
+                                        self.aio_config[AIO_THREAD_COUNT])
 
         self.swap_out_params = []
 

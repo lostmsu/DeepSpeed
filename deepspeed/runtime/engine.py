@@ -787,9 +787,6 @@ class DeepSpeedEngine(Module):
     def swap_tensor_config(self):
         return self._config.swap_tensor_config
 
-    def aio_config(self):
-        return self._config.aio_config
-
     def _configure_lr_scheduler(self, client_lr_scheduler):
         # First check for scheduler in json configuration
         lr_scheduler = self._scheduler_from_config(self.optimizer)
@@ -1426,7 +1423,6 @@ class DeepSpeedEngine(Module):
                 postscale_gradients=self.postscale_gradients(),
                 gradient_predivide_factor=self.gradient_predivide_factor(),
                 gradient_accumulation_steps=self.gradient_accumulation_steps(),
-                aio_config=self.aio_config(),
                 communication_data_type=self.communication_data_type)
 
         else:

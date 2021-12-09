@@ -7,15 +7,13 @@ Functionality of swapping optimizer tensors to/from (NVMe) storage devices.
 
 import os
 import torch
-
 from deepspeed.utils.logging import logger
-from deepspeed.ops.aio import AsyncIOBuilder
 
 from deepspeed.runtime.zero.offload_constants import *
-from deepspeed.runtime.swap_tensor.constants import *
 from deepspeed.runtime.swap_tensor.utils import swap_in_tensors, swap_out_tensors, print_object, \
     MIN_AIO_BYTES, AIO_ALIGNED_BYTES
 from deepspeed.runtime.swap_tensor.async_swapper import AsyncTensorSwapper
+from deepspeed.runtime.swap_tensor.mmap_io import MMapIO
 from deepspeed.runtime.swap_tensor.optimizer_utils import SwapBufferManager, get_sized_buffer
 from deepspeed.runtime.swap_tensor.optimizer_utils import OptimizerSwapper
 
@@ -77,21 +75,20 @@ class PipelinedOptimizerSwapper(OptimizerSwapper):
                              dtype,
                              timers)
 
-        aio_op = AsyncIOBuilder().load()
-        self.write_aio_handle = aio_op.aio_handle(aio_config[AIO_BLOCK_SIZE],
-                                                  aio_config[AIO_QUEUE_DEPTH],
-                                                  aio_config[AIO_SINGLE_SUBMIT],
-                                                  aio_config[AIO_OVERLAP_EVENTS],
-                                                  aio_config[AIO_THREAD_COUNT])
+        self.write_aio_handle = MMapIO(aio_config[AIO_BLOCK_SIZE],
+                                       aio_config[AIO_QUEUE_DEPTH],
+                                       aio_config[AIO_SINGLE_SUBMIT],
+                                       aio_config[AIO_OVERLAP_EVENTS],
+                                       aio_config[AIO_THREAD_COUNT])
 
-        self.read_aio_handle = aio_op.aio_handle(aio_config[AIO_BLOCK_SIZE],
-                                                 aio_config[AIO_QUEUE_DEPTH],
-                                                 aio_config[AIO_SINGLE_SUBMIT],
-                                                 aio_config[AIO_OVERLAP_EVENTS],
-                                                 aio_config[AIO_THREAD_COUNT])
+        self.read_aio_handle = MMapIO(aio_config[AIO_BLOCK_SIZE],
+                                      aio_config[AIO_QUEUE_DEPTH],
+                                      aio_config[AIO_SINGLE_SUBMIT],
+                                      aio_config[AIO_OVERLAP_EVENTS],
+                                      aio_config[AIO_THREAD_COUNT])
 
         # Overlap gradient swap out
-        self.gradient_swapper = AsyncTensorSwapper(aio_handle=self.write_aio_handle,
+        self.gradient_swapper = AsyncTensorSwapper(io=self.write_aio_handle,
                                                    numel_alignment=self.numel_alignment,
                                                    timers=self.timers)
 
@@ -121,7 +118,7 @@ class PipelinedOptimizerSwapper(OptimizerSwapper):
     def initialize_parameters(self, parameters, src_tensors):
         self._initialize_parameters(parameters=parameters,
                                     src_tensors=src_tensors,
-                                    aio_handle=self.write_aio_handle)
+                                    io=self.write_aio_handle)
 
     def initialize_from_swapped_fp16_params(self,
                                             fp16_partitions_info,
@@ -129,7 +126,7 @@ class PipelinedOptimizerSwapper(OptimizerSwapper):
                                             fp16_pinned_buffers,
                                             fp32_parameters):
         self._initialize_from_swapped_fp16_params(
-            aio_handle=self.write_aio_handle,
+            io=self.write_aio_handle,
             fp16_partitions_info=fp16_partitions_info,
             fp16_num_elems=fp16_num_elems,
             fp16_pinned_buffers=fp16_pinned_buffers,

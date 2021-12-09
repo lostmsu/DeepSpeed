@@ -9,11 +9,7 @@ import os
 import torch
 from deepspeed.utils.logging import logger
 
-from deepspeed.runtime.swap_tensor.constants import AIO_BLOCK_SIZE, AIO_QUEUE_DEPTH, \
-    AIO_THREAD_COUNT, AIO_SINGLE_SUBMIT, AIO_OVERLAP_EVENTS
-
 MIN_AIO_BYTES = 1024**2
-AIO_ALIGNED_BYTES = 1024
 
 
 def swap_in_tensors(swap_handle, tensor_buffers, swap_paths):
@@ -148,25 +144,25 @@ class SwapBufferPool(object):
         self.current_index += 1
         return self._get_current_buffer().has_space(numel)
 
-    def swap_out(self, aio_handle, async_op=False):
+    def swap_out(self, io, async_op=False):
         swap_tensors = self.get_swap_tensors()
         swap_paths = self.get_swap_paths()
         assert all([p is not None for p in swap_paths])
 
-        swap_out_tensors(aio_handle, swap_tensors, swap_paths)
+        swap_out_tensors(io, swap_tensors, swap_paths)
 
         if not async_op:
-            assert len(swap_tensors) == aio_handle.wait()
+            assert len(swap_tensors) == io.wait()
 
-    def swap_in(self, aio_handle, async_op=False):
+    def swap_in(self, io, async_op=False):
         swap_tensors = self.get_swap_tensors()
         swap_paths = self.get_swap_paths()
         assert all([p is not None for p in swap_paths])
 
-        swap_in_tensors(aio_handle, swap_tensors, swap_paths)
+        swap_in_tensors(io, swap_tensors, swap_paths)
 
         if not async_op:
-            assert len(swap_tensors) == aio_handle.wait()
+            assert len(swap_tensors) == io.wait()
 
     def _get_current_buffer(self):
         return self.buffers[self.current_index]
