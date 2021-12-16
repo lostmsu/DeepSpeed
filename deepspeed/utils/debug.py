@@ -1,6 +1,6 @@
 """ debug utils """
 
-import fcntl
+from filelock import FileLock
 
 # for debug purposes map module and param objects to their fully qualified names
 module_names = {}
@@ -79,12 +79,8 @@ def printflock(*msgs):
 
     """
 
-    with open(__file__, "r") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        try:
-            print(*msgs)
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
+    with FileLock(__file__):
+        print(*msgs)
 
 
 fh = None

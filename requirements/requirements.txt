@@ -1,3 +1,4 @@
+filelock
 hjson
 ninja
 numpy
