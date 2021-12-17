@@ -4,6 +4,8 @@
 # https://github.com/ptillet/torch-blocksparse/blob/master/tests/utils
 
 import pytest
+import sys
+
 import torch
 import deepspeed
 from deepspeed.ops.op_builder import SparseAttnBuilder
@@ -11,6 +13,9 @@ from deepspeed.ops.op_builder import SparseAttnBuilder
 if not deepspeed.ops.__compatible_ops__[SparseAttnBuilder.NAME]:
     pytest.skip("sparse attention op is not compatible on this system",
                 allow_module_level=True)
+
+pytestmark = pytest.mark.skipif(sys.platform == "win32",
+                                reason='TODO: crashes on Windows')
 
 
 def test_sparse_attention_module_availability():
