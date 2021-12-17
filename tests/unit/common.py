@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 import torch
@@ -51,6 +52,13 @@ def set_cuda_visibile():
     dev_id_list = cuda_visible.split(",")
     dev_id_list = dev_id_list[xdist_worker_id:] + dev_id_list[:xdist_worker_id]
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(dev_id_list)
+
+
+def assert_distributed_test_supported():
+    if sys.platform == 'win32':
+        pytest.skip(
+            "Decorated distributed tests are not available on Windows because fork is not supported"
+        )
 
 
 def distributed_test(world_size=2, backend='nccl'):
@@ -139,6 +147,8 @@ def distributed_test(world_size=2, backend='nccl'):
 
         def run_func_decorator(*func_args, **func_kwargs):
             """Entry point for @distributed_test(). """
+
+            assert_distributed_test_supported()
 
             if isinstance(world_size, int):
                 dist_launcher(world_size, *func_args, **func_kwargs)

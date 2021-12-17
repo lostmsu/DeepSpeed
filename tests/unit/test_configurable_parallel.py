@@ -7,7 +7,7 @@ import random
 import numpy as np
 import torch.multiprocessing as mp
 import torch.distributed as dist
-from common import distributed_test
+from common import assert_distributed_test_supported, distributed_test
 from simple_model import args_from_dict, create_deepspeed_args
 from megatron_model import get_gpt2_model, get_megatron_version
 from megatron_model import MockGPT2ModelPipe as GPT2ModelPipe
@@ -25,6 +25,26 @@ def reset_random(seed=1234):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+
+def _MP_gpt2_config_mp_verify(b_queue, t_queue, baseline_event, test_event):
+    baseline = b_queue.get()
+    baseline_event.set()
+
+    test = t_queue.get()
+    test_event.set()
+
+    assert torch.allclose(baseline, test, atol=1e-03), f"Baseline output {baseline} is not equal to save-then-load output {test}"
+
+
+def _PP_gpt2_config_pp_verify(b_queue, t_queue, baseline_event, test_event):
+    baseline = b_queue.get()
+    baseline_event.set()
+
+    test = t_queue.get()
+    test_event.set()
+
+    assert torch.allclose(baseline, test, atol=1e-03), f"Baseline output {baseline} is not equal to save-then-load output {test}"
 
 
 class TestConfigurableMP:
@@ -131,6 +151,8 @@ class TestConfigurableMP:
     def _test_gpt2_config_mp(self, tmpdir, mp_size, resize):
         # test mp_size=2 case, verify resize=1 case for ckpt merging.
 
+        assert_distributed_test_supported()
+
         @distributed_test(world_size=mp_size)
         def _run_baseline(inputs, tag, output, quit_event):
             reset_random()
@@ -181,15 +203,6 @@ class TestConfigurableMP:
                     output.put(test.cpu())
             quit_event.wait()
 
-        def _verify(b_queue, t_queue, baseline_event, test_event):
-            baseline = b_queue.get()
-            baseline_event.set()
-
-            test = t_queue.get()
-            test_event.set()
-
-            assert torch.allclose(baseline, test, atol=1e-03), f"Baseline output {baseline} is not equal to save-then-load output {test}"
-
         tag = f'mp_{mp_size}_resize_{resize}'
         inputs = self.get_inputs()
 
@@ -198,7 +211,7 @@ class TestConfigurableMP:
         baseline_event = mp.Event()
         test_event = mp.Event()
 
-        verify_process = mp.Process(target=_verify,
+        verify_process = mp.Process(target=_MP_gpt2_config_mp_verify,
                                     args=(baseline,
                                           test,
                                           baseline_event,
@@ -320,6 +333,8 @@ class TestConfigurablePP:
         _run()
 
     def _test_gpt2_config_pp(self, tmpdir, mp_size, pp_size, mp_resize, pp_resize):
+        assert_distributed_test_supported()
+
         @distributed_test(world_size=pp_size * mp_size)
         def _run_baseline(inputs, tag, output, quit_event):
             reset_random()
@@ -405,15 +420,6 @@ class TestConfigurablePP:
 
             quit_event.wait()
 
-        def _verify(b_queue, t_queue, baseline_event, test_event):
-            baseline = b_queue.get()
-            baseline_event.set()
-
-            test = t_queue.get()
-            test_event.set()
-
-            assert torch.allclose(baseline, test, atol=1e-03), f"Baseline output {baseline} is not equal to save-then-load output {test}"
-
         tag = f'mp_{mp_size}to{mp_resize}_pp_{pp_size}to{pp_resize}'
 
         baseline = mp.Queue()
@@ -421,7 +427,7 @@ class TestConfigurablePP:
         baseline_event = mp.Event()
         test_event = mp.Event()
 
-        verify_process = mp.Process(target=_verify,
+        verify_process = mp.Process(target=_PP_gpt2_config_pp_verify,
                                     args=(baseline,
                                           test,
                                           baseline_event,
