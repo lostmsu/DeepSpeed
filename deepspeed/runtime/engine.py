@@ -5,6 +5,7 @@ Copyright 2019 The Microsoft DeepSpeed Team
 import os
 import re
 import stat
+import sys
 import math
 import torch
 import warnings
@@ -180,6 +181,7 @@ class DeepSpeedEngine(Module):
         config=None,
         config_params=None,
         dont_change_device=False,
+        dist_backend=None,
     ):
         super(DeepSpeedEngine, self).__init__()
         self.dont_change_device = dont_change_device
@@ -204,7 +206,10 @@ class DeepSpeedEngine(Module):
         self.eigenvalue = None
         self.block_eigenvalue = None
         self.gas_boundary_ctr = 0
-        self.dist_backend = "nccl"
+        if dist_backend is None:
+            dist_backend = 'nccl' if torch.distributed.is_nccl_available(
+            ) or sys.platform != 'win32' else 'gloo'
+        self.dist_backend = dist_backend
         self.has_moe_layers = False
         self.num_experts = None
         self.gate_modules = []
