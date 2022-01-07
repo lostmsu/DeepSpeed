@@ -984,7 +984,7 @@ class DeepSpeedEngine(Module):
                 if not all(
                     [param.dtype == torch.half for param in self.module.parameters()]):
                     names = [
-                        n for n,
+                        f"{n}:{p.dtype}" for n,
                         p in self.module.named_parameters() if p.dtype != torch.half
                     ]
                     raise ValueError(
